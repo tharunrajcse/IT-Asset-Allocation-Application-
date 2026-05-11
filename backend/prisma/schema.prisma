@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  PROCUREMENT
+  FINANCE
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FULFILLED
+}
+
+enum PurchaseOrderStatus {
+  ORDERED
+  SHIPPED
+  DELIVERED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employeeRequests AssetRequest[] @relation("EmployeeRequests")
+  approvals        AssetRequest[] @relation("ManagerApprovals")
+  allocations      Allocation[]
+  tickets          MaintenanceTicket[]
+  returns          AssetReturn[]
+}
+
+model InventoryItem {
+  id             String   @id @default(cuid())
+  name           String
+  sku            String   @unique
+  totalStock     Int      @default(0)
+  availableStock Int      @default(0)
+  reorderLevel   Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  allocations Allocation[]
+  requests    AssetRequest[]
+  poItems     PurchaseOrderItem[]
+  returns     AssetReturn[]
+}
+
+model Vendor {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  email     String?
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+}
+
+model AssetRequest {
+  id            String        @id @default(cuid())
+  quantity      Int
+  reason        String
+  status        RequestStatus @default(PENDING)
+  managerNote   String?
+  requestedAt   DateTime      @default(now())
+  decidedAt     DateTime?
+  fulfilledAt   DateTime?
+
+  employee   User          @relation("EmployeeRequests", fields: [employeeId], references: [id])
+  employeeId String
+
+  manager   User?   @relation("ManagerApprovals", fields: [managerId], references: [id])
+  managerId String?
+
+  item   InventoryItem @relation(fields: [itemId], references: [id])
+  itemId String
+
+  purchaseOrderItem PurchaseOrderItem?
+  allocation        Allocation?
+}
+
+model PurchaseOrder {
+  id           String              @id @default(cuid())
+  status       PurchaseOrderStatus @default(ORDERED)
+  deliveryDate DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  vendor   Vendor @relation(fields: [vendorId], references: [id])
+  vendorId String
+
+  items   PurchaseOrderItem[]
+  invoice Invoice?
+}
+
+model PurchaseOrderItem {
+  id         String @id @default(cuid())
+  quantity   Int
+  unitCost   Int
+  totalCost  Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrderId String
+
+  item   InventoryItem @relation(fields: [itemId], references: [id])
+  itemId String
+
+  request   AssetRequest? @relation(fields: [requestId], references: [id])
+  requestId String?       @unique
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  paymentStatus PaymentStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrderId String        @unique
+}
+
+model Allocation {
+  id         String   @id @default(cuid())
+  quantity   Int
+  allocatedAt DateTime @default(now())
+  returnedAt DateTime?
+
+  user   User @relation(fields: [userId], references: [id])
+  userId String
+
+  item   InventoryItem @relation(fields: [itemId], references: [id])
+  itemId String
+
+  request   AssetRequest? @relation(fields: [requestId], references: [id])
+  requestId String?       @unique
+}
+
+model MaintenanceTicket {
+  id               String   @id @default(cuid())
+  assetName        String
+  issueDescription String
+  status           String   @default("OPEN")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user   User @relation(fields: [userId], references: [id])
+  userId String
+}
+
+model AssetReturn {
+  id         String   @id @default(cuid())
+  quantity   Int
+  returnedAt DateTime @default(now())
+  note       String?
+
+  user   User @relation(fields: [userId], references: [id])
+  userId String
+
+  item   InventoryItem @relation(fields: [itemId], references: [id])
+  itemId String
+}
+
